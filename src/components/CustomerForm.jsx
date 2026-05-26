@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../supabaseClient'
-
-function onlyDigits(s){ return (s||'').replace(/\D/g,'') }
+import { validateEmail, validatePhone, validateCPF, validateCNPJ, getEmailErrorMessage, getPhoneErrorMessage } from '../lib/validations'
 
 function maskCPF(value){
   const digits = onlyDigits(value)
@@ -42,12 +41,13 @@ function validateCPF(cpf){
   return true
 }
 
-export default function CustomerForm(){
+export default function CustomerForm({ onSuccess }){
   const [type, setType] = useState('cpf')
   const [doc, setDoc] = useState('')
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [errors, setErrors] = useState({})
   const [form, setForm] = useState({
     razao_nome: '',
     fantasia_apelido: '',
@@ -63,7 +63,11 @@ export default function CustomerForm(){
     uf: ''
   })
 
-  function setField(k,v){ setForm(f=>({...f,[k]:v})) }
+    setForm(f=>({...f,[k]:v}))
+    // Clear error for this field when user starts typing
+    if(errors[k]) setErrors(e=>({...e,[k]:null}))
+ 
+  function onlyDigits(s){ return (s||'').replace(/\D/g,'') }
 
   function handleDocChange(e){
     const value = e.target.value
@@ -122,21 +126,28 @@ export default function CustomerForm(){
       }))
       setMessage('✓ Endereço carregado')
     }catch(e){ console.error(e); setMessage('Erro ao consultar CEP') }
-  }
-
-  function requiredFilled(){
-    const r = form.razao_nome.trim() || ''
-    const emailOk = form.email.trim().length>3 && form.email.includes('@')
-    const telefoneOk = form.telefone.trim().length>6
+  }validateEmail(form.email)
+    const telefoneOk = validatePhone(form.telefone)
     const enderecoOk = form.cep.trim() && form.logradouro.trim() && form.numero.trim() && form.cidade.trim() && form.uf.trim()
     const docDigits = onlyDigits(doc)
     if(type==='cnpj') return docDigits.length===14 && r && emailOk && telefoneOk && enderecoOk
     return docDigits.length===11 && r && emailOk && telefoneOk && enderecoOk
   }
 
-  async function handleSave(){
+  function validateForm() {
+    const newErrors = {}
+    
+    if (!form.razao_nome.trim()) newErrors.razao_nome = 'Campo obrigatório'
+    const emailError = getEmailErrorMessage(form.email)
+    if (!validateForm()) {
+      setMessage('')
+      return
+    }
+
     const cpfcnpj = onlyDigits(doc)
     if(type==='cpf' && !validateCPF(doc)){ setMessage('CPF inválido'); return }
+    if(type==='cnpj' && !validateCNPJ(doc)){ setMessage('CNPJ inválido'); return }
+    
     setSaving(true)
     setMessage('')
     try{
@@ -151,6 +162,25 @@ export default function CustomerForm(){
         tipo: type,
         cpf_cnpj: cpfcnpj,
         razao_nome: form.razao_nome,
+        fantasia_apelido: form.fantasia_apelido,
+        inscricao_estadual: form.inscricao_estadual,
+        email: form.email,
+        telefone: form.telefone,
+        cep: onlyDigits(form.cep),
+        logradouro: form.logradouro,
+        numero: form.numero,
+        complemento: form.complemento,
+        bairro: form.bairro,
+        cidade: form.cidade,
+        uf: form.uf
+      }
+      const { error: insErr } = await supabase.from('clientes').insert(payload)
+      if(insErr) throw insErr
+      setMessage('✓ Cadastro salvo com sucesso')
+      setTimeout(()=>{
+        setDoc('')
+        setForm({ razao_nome:'', fantasia_apelido:'', inscricao_estadual:'', email:'', telefone:'', cep:'', logradouro:'', numero:'', complemento:'', bairro:'', cidade:'', uf:'' })
+        if(onSuccess) onSuccess(
         fantasia_apelido: form.fantasia_apelido,
         inscricao_estadual: form.inscricao_estadual,
         email: form.email,
@@ -196,15 +226,8 @@ export default function CustomerForm(){
             onChange={handleDocChange}
             className="w-full border px-3 py-2 rounded"
             placeholder={type==='cnpj' ? 'CNPJ' : 'CPF'}
-          />
-        </div>
-        <button onClick={handleBuscar} disabled={loadingSearch || (type==='cnpj' && onlyDigits(doc).length!==14) || (type==='cpf' && onlyDigits(doc).length!==11)} className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50 hover:bg-blue-700">{loadingSearch? 'Buscando...':'Buscar Dados'}</button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Razão Social / Nome Completo *</label>
-          <input value={form.razao_nome} onChange={e=>setField('razao_nome', e.target.value)} className="w-full border px-3 py-2 rounded" />
+          />{`w-full border px-3 py-2 rounded ${errors.razao_nome ? 'border-red-500' : ''}`} />
+          {errors.razao_nome && <p className="text-red-500 text-xs mt-1">{errors.razao_nome}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Nome Fantasia / Apelido</label>
@@ -218,11 +241,13 @@ export default function CustomerForm(){
         )}
         <div>
           <label className="block text-sm font-medium mb-1">E-mail principal *</label>
-          <input value={form.email} onChange={e=>setField('email', e.target.value)} className="w-full border px-3 py-2 rounded" />
+          <input value={form.email} onChange={e=>setField('email', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.email ? 'border-red-500' : ''}`} />
+          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Telefone / WhatsApp *</label>
-          <input value={form.telefone} onChange={e=>setField('telefone', e.target.value)} className="w-full border px-3 py-2 rounded" />
+          <input value={form.telefone} onChange={e=>setField('telefone', e.target.value)} placeholder="(11) 9xxxx-xxxx" className={`w-full border px-3 py-2 rounded ${errors.telefone ? 'border-red-500' : ''}`} />
+          {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
         </div>
 
         <div>
@@ -231,17 +256,20 @@ export default function CustomerForm(){
             value={form.cep}
             onChange={handleCepChange}
             onBlur={handleCepBlur}
-            className="w-full border px-3 py-2 rounded"
+            className={`w-full border px-3 py-2 rounded ${errors.cep ? 'border-red-500' : ''}`}
             placeholder="00000-000"
           />
+          {errors.cep && <p className="text-red-500 text-xs mt-1">{errors.cep}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Logradouro *</label>
-          <input value={form.logradouro} onChange={e=>setField('logradouro', e.target.value)} className="w-full border px-3 py-2 rounded" />
+          <input value={form.logradouro} onChange={e=>setField('logradouro', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.logradouro ? 'border-red-500' : ''}`} />
+          {errors.logradouro && <p className="text-red-500 text-xs mt-1">{errors.logradouro}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Número *</label>
-          <input value={form.numero} onChange={e=>setField('numero', e.target.value)} className="w-full border px-3 py-2 rounded" />
+          <input value={form.numero} onChange={e=>setField('numero', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.numero ? 'border-red-500' : ''}`} />
+          {errors.numero && <p className="text-red-500 text-xs mt-1">{errors.numero}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Complemento</label>
@@ -250,6 +278,16 @@ export default function CustomerForm(){
         <div>
           <label className="block text-sm font-medium mb-1">Bairro</label>
           <input value={form.bairro} onChange={e=>setField('bairro', e.target.value)} className="w-full border px-3 py-2 rounded" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Cidade *</label>
+          <input value={form.cidade} onChange={e=>setField('cidade', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.cidade ? 'border-red-500' : ''}`} />
+          {errors.cidade && <p className="text-red-500 text-xs mt-1">{errors.cidade}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Estado (UF) *</label>
+          <input value={form.uf} onChange={e=>setField('uf', e.target.value.toUpperCase())} className={`w-full border px-3 py-2 rounded ${errors.uf ? 'border-red-500' : ''}`} maxLength="2" />
+          {errors.uf && <p className="text-red-500 text-xs mt-1">{errors.uf}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Cidade *</label>
