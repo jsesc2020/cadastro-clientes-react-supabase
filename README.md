@@ -9,6 +9,16 @@ Aplicação React + Tailwind + Supabase que gerencia:
 
 > A navegação agora é baseada em rotas de URL. Use links diretos para acessar as páginas:
 > `/`, `/proprietarios`, `/pontos`, `/mapa`, `/contratos`, `/clientes`
+>
+> Exemplos locais:
+> - `http://localhost:5173/`
+> - `http://localhost:5173/proprietarios`
+> - `http://localhost:5173/pontos`
+> - `http://localhost:5173/mapa`
+> - `http://localhost:5173/contratos`
+> - `http://localhost:5173/clientes`
+>
+> Em produção, substitua `http://localhost:5173` pelo domínio do seu deploy.
 
 ## 🚀 Início Rápido
 
