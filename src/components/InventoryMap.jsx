@@ -60,12 +60,15 @@ export default function InventoryMap() {
   const [pontos, setPontos] = useState([])
   const [contracts, setContracts] = useState([])
   const [proprietarios, setProprietarios] = useState({})
+  const [owners, setOwners] = useState([])
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
   const [filters, setFilters] = useState({ tipo: 'all', status: 'all' })
   const [error, setError] = useState('')
   const [statusSyncMessage, setStatusSyncMessage] = useState('')
   const [selectedPoint, setSelectedPoint] = useState(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState(null)
   const mapRef = useRef(null)
   const mapInstance = useRef(null)
   const markersRef = useRef([])
@@ -113,6 +116,7 @@ export default function InventoryMap() {
         return acc
       }, {})
       setProprietarios(ownerMap)
+      setOwners(proprietariosData || [])
 
       const [{ data: pontosData, error: pontosError }, { data: contractsData, error: contractsError }] = await Promise.all([
         supabase.from('pontos_inventario').select('*').order('created_at', { ascending: false }),
@@ -164,6 +168,92 @@ export default function InventoryMap() {
 
   function getCurrentContract(pointId) {
     return contracts.find((contract) => contract.ponto_id === pointId && isContractActive(contract))
+  }
+
+  function createEditForm(point) {
+    return {
+      id: point.id,
+      tipo: point.tipo,
+      identificacao: point.identificacao || '',
+      proprietario_id: point.proprietario_id || '',
+      endereco_completo: point.endereco_completo || '',
+      latitude: point.latitude?.toString() ?? '',
+      longitude: point.longitude?.toString() ?? '',
+      status: point.status,
+      valor_custo_proprietario: point.valor_custo_proprietario?.toFixed(2) ?? ''
+    }
+  }
+
+  useEffect(() => {
+    if (selectedPoint) {
+      setEditForm(createEditForm(selectedPoint))
+    } else {
+      setEditMode(false)
+      setEditForm(null)
+    }
+  }, [selectedPoint])
+
+  function updateEditField(key, value) {
+    setEditForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function validateEditForm() {
+    const fieldErrors = {}
+    if (!editForm?.identificacao?.trim()) fieldErrors.identificacao = 'Identificação é obrigatória'
+    if (!editForm?.proprietario_id) fieldErrors.proprietario_id = 'Escolha um proprietário'
+    if (!editForm?.endereco_completo?.trim()) fieldErrors.endereco_completo = 'Endereço é obrigatório'
+    if (!editForm?.latitude?.trim() || !editForm?.longitude?.trim()) fieldErrors.latitude = 'Latitude e longitude são obrigatórias'
+    if (!editForm?.valor_custo_proprietario?.trim() || Number.isNaN(Number(editForm.valor_custo_proprietario))) {
+      fieldErrors.valor_custo_proprietario = 'Valor de custo inválido'
+    }
+    return {
+      valid: Object.keys(fieldErrors).length === 0,
+      fieldErrors
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!editForm) return
+    const { valid, fieldErrors } = validateEditForm()
+    if (!valid) {
+      setError(Object.values(fieldErrors).join(' - '))
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      const payload = {
+        tipo: editForm.tipo,
+        identificacao: editForm.identificacao.trim(),
+        proprietario_id: editForm.proprietario_id,
+        endereco_completo: editForm.endereco_completo.trim(),
+        latitude: Number(editForm.latitude),
+        longitude: Number(editForm.longitude),
+        status: editForm.status,
+        valor_custo_proprietario: parseFloat(editForm.valor_custo_proprietario)
+      }
+
+      const { error } = await supabase.from('pontos_inventario').update(payload).eq('id', editForm.id)
+      if (error) throw error
+
+      setStatusSyncMessage('Ponto atualizado com sucesso.')
+      setSelectedPoint((current) => ({ ...current, ...payload }))
+      setEditMode(false)
+      await fetchData()
+    } catch (err) {
+      console.error('Erro ao salvar edição do ponto:', err)
+      setError(err.message || 'Erro ao salvar edição do ponto.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleCancelEdit() {
+    if (selectedPoint) {
+      setEditForm(createEditForm(selectedPoint))
+    }
+    setEditMode(false)
   }
 
   function filterPoints() {
@@ -315,15 +405,133 @@ export default function InventoryMap() {
           </div>
 
           {selectedPoint && (
-            <div className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold">Ponto selecionado</h2>
-              <p className="mt-2 text-sm"><strong>{selectedPoint.identificacao}</strong></p>
-              <p className="text-sm">Tipo: {selectedPoint.tipo}</p>
-              <p className="text-sm">Status: {selectedPoint.status}</p>
-              <p className="text-sm">Proprietário: {proprietarios[selectedPoint.proprietario_id] || 'N/A'}</p>
-              <p className="text-sm">Latitude: {selectedPoint.latitude}</p>
-              <p className="text-sm">Longitude: {selectedPoint.longitude}</p>
-              <p className="mt-3 text-sm text-gray-600">Clique no marcador e depois em “Editar Ponto” para ver os detalhes.</p>
+            <div className="rounded border border-gray-200 bg-white p-4 shadow-sm space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Ponto selecionado</h2>
+                <p className="mt-2 text-sm"><strong>{selectedPoint.identificacao}</strong></p>
+                <p className="text-sm">Tipo: {selectedPoint.tipo}</p>
+                <p className="text-sm">Status: {selectedPoint.status}</p>
+                <p className="text-sm">Proprietário: {proprietarios[selectedPoint.proprietario_id] || 'N/A'}</p>
+                <p className="text-sm">Latitude: {selectedPoint.latitude}</p>
+                <p className="text-sm">Longitude: {selectedPoint.longitude}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditMode(true)}
+                className="w-full rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
+              >
+                Abrir edição rápida
+              </button>
+
+              {editMode && editForm && (
+                <div className="rounded border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-lg font-semibold">Edição rápida</h3>
+                  <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Identificação</label>
+                      <input
+                        value={editForm.identificacao}
+                        onChange={(event) => updateEditField('identificacao', event.target.value)}
+                        className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Tipo</label>
+                      <select
+                        value={editForm.tipo}
+                        onChange={(event) => updateEditField('tipo', event.target.value)}
+                        className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      >
+                        <option value="OUTDOOR">Outdoor</option>
+                        <option value="TV">TV</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Status</label>
+                      <select
+                        value={editForm.status}
+                        onChange={(event) => updateEditField('status', event.target.value)}
+                        className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      >
+                        <option value="DISPONIVEL">Disponível</option>
+                        <option value="LOCADO">Locado</option>
+                        <option value="MANUTENCAO">Manutenção</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Proprietário</label>
+                      <select
+                        value={editForm.proprietario_id}
+                        onChange={(event) => updateEditField('proprietario_id', event.target.value)}
+                        className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      >
+                        <option value="">Selecione um proprietário</option>
+                        {owners.map((owner) => (
+                          <option key={owner.id} value={owner.id}>{owner.nome_completo}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Latitude</label>
+                      <input
+                        value={editForm.latitude}
+                        onChange={(event) => updateEditField('latitude', event.target.value)}
+                        className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Longitude</label>
+                      <input
+                        value={editForm.longitude}
+                        onChange={(event) => updateEditField('longitude', event.target.value)}
+                        className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Endereço completo</label>
+                    <input
+                      value={editForm.endereco_completo}
+                      onChange={(event) => updateEditField('endereco_completo', event.target.value)}
+                      className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Valor de custo mensal</label>
+                    <input
+                      value={editForm.valor_custo_proprietario}
+                      onChange={(event) => updateEditField('valor_custo_proprietario', event.target.value)}
+                      className="mt-1 block w-full rounded border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <button
+                      type="button"
+                      onClick={handleSaveEdit}
+                      className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                    >
+                      Salvar alterações
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="rounded border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-100"
+                    >
+                      Cancelar edição
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
