@@ -1,17 +1,16 @@
-# Módulo de Inventário de Outdoors e TVs (React + Tailwind + Supabase)
+# Cadastro de Clientes e Inventário de Outdoors/TVs
 
-Este projeto agora inclui um módulo de cadastro para gerenciar inventário físico de outdoors e TVs, com:
-- ✅ Cadastro de proprietários com dados bancários (Pix, banco, agência e conta)
-- ✅ Cadastro de pontos de mídia com endereço, geocodificação e coordenadas
-- ✅ Tela de mapa interativo com filtros por tipo e status
-- ✅ Marcações coloridas e InfoWindow com dados do ponto
-- ✅ Validação de latitude/longitude obrigatória antes de salvar
-- ✅ Integração com Google Places API para autocomplete de endereço
-- ✅ Mini-mapa de ajuste de posição para refinar coordenadas
-- ✅ Tabelas novas no Supabase: `proprietarios` e `pontos_inventario`
-- ✅ RLS básico para ambas tabelas
+Aplicação React + Tailwind + Supabase que gerencia:
+- cadastro de clientes
+- proprietários de mídia
+- pontos de mídia (outdoors e TVs)
+- contratos que vinculam clientes aos pontos
+- visualização de mapa com edição rápida
 
-## 🚀 Quick Start
+> A navegação agora é baseada em rotas de URL. Use links diretos para acessar as páginas:
+> `/`, `/proprietarios`, `/pontos`, `/mapa`, `/contratos`, `/clientes`
+
+## 🚀 Início Rápido
 
 ### 1. Instalar dependências
 ```bash
@@ -19,124 +18,98 @@ npm install
 ```
 
 ### 2. Configurar variáveis de ambiente
+Copie o arquivo de exemplo e edite com suas credenciais:
 ```bash
-cp .env.example .env
+copy .env.example .env
 ```
 
-Edite `.env` com suas credenciais do Supabase e a chave do Google Maps:
-```
+Defina ao menos:
+```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-chave-publica
 VITE_GOOGLE_MAPS_API_KEY=sua-chave-google-maps
 VITE_CPF_LOOKUP_PROVIDER=mock
 ```
 
-> A chave do Google Maps deve ser mantida em variáveis de ambiente e não codificada diretamente no código.
+> A chave do Google Maps deve ficar em variáveis de ambiente.
 
 ### 3. Criar tabelas no Supabase
+Execute os scripts SQL na ordem:
+- `db/001_create_clientes_table.sql`
+- `db/002_add_rls_policies.sql`
+- `db/003_create_inventory_tables.sql`
+- `db/004_add_inventory_rls_policies.sql`
+- `db/005_create_contracts_table.sql`
+- `db/006_add_contracts_rls_policies.sql`
 
-Vá para SQL Editor no painel do Supabase e execute os scripts em `db/003_create_inventory_tables.sql`, `db/004_add_inventory_rls_policies.sql`, `db/005_create_contracts_table.sql` e `db/006_add_contracts_rls_policies.sql`.
-
-Se você quiser manter o cadastro de clientes legados, também pode executar:
-
-```sql
--- db/001_create_clientes_table.sql
--- db/002_add_rls_policies.sql
-```
-
-### 4. Rodar em desenvolvimento
+### 4. Rodar localmente
 ```bash
 npm run dev
 ```
 
-Abra `http://localhost:5173` no navegador.
+Acesse `http://localhost:5173`.
 
-## 📋 Funcionalidades do Módulo de Inventário
+## 📌 Principais Páginas e Rotas
+
+- `/` - Dashboard inicial do módulo
+- `/proprietarios` - Cadastro de proprietários
+- `/pontos` - Cadastro de pontos de mídia
+- `/mapa` - Mapa interativo com pontos
+- `/contratos` - Cadastro e lista de contratos
+- `/clientes` - Cadastro e lista de clientes
+
+## 📋 Funcionalidades
 
 ### Cadastro de Proprietário
-- **Nome completo**
-- **CPF/CNPJ único**
-- **Telefone**
-- **Dados bancários em JSONB** (Pix, banco, agência, conta)
+- nome, CPF/CNPJ, telefone e dados bancários
+- controle de proprietários ligados aos pontos de mídia
 
 ### Cadastro de Ponto de Mídia
-- **Tipo**: Outdoor ou TV
-- **Identificação descritiva**
-- **Proprietário vinculado**
-- **Endereço com autocomplete do Google**
-- **Latitude/Longitude obrigatórias**
-- **Valor de custo mensal**
-- **Status**: Disponível, Locado, Manutenção
+- tipo (`OUTDOOR` ou `TV`)
+- endereço com autocomplete do Google
+- latitude/longitude obrigatórias
+- vinculação a proprietário
+- status de disponibilidade
 
-### Dashboard do Mapa Interativo
-- **Filtros por tipo e status**
-- **Pins coloridos** para cada status
-- **InfoWindow** com detalhes do ponto
-- **Painel de seleção** para exibir dados do ponto clicado
-- **Visualização de pontos no mapa em tempo real**
+### Mapa Interativo
+- filtros por tipo e status
+- pins coloridos por status
+- mini-mapa para ajuste de coordenadas
+- exibição dos dados ao clicar no ponto
 
 ### Contratos
-- **Cadastro de contratos** para vincular cliente + ponto de mídia
-- **Atualização automática de status** do ponto para `LOCADO` quando o contrato estiver ativo
-- **Retorno para `DISPONIVEL`** quando o contrato expirar
-- **Lista de contratos** com cliente, período e valor mensal
+- vincula cliente e ponto de mídia
+- atualiza o ponto para `LOCADO` automaticamente
+- reverte para `DISPONIVEL` ao expirar
+- lista de contratos com período e valor
 
-### Regras de Negócio
-- O sistema não permite salvar ponto se latitude/longitude estiverem vazias
-- Quando o contrato for criado, o ponto passa para `LOCADO`
-- Quando o contrato vencer, o ponto volta para `DISPONIVEL`
-
-## 🧪 Testes
-
-### Rodar testes
-```bash
-npm test
-```
-
-### Modo watch
-```bash
-npm test:watch
-```
-
-### Cobertura de código
-```bash
-npm test:coverage
-```
-
-Testes atuais incluem validações básicas de CPF/CNPJ, e-mail e telefone.
+### Clientes
+- cadastro e listagem de clientes legados
+- integração com formulários e contratos
 
 ## 🧪 Testes
 
-### Rodar testes
+### Comandos disponíveis
 ```bash
 npm test
-```
-
-### Modo watch
-```bash
 npm test:watch
-```
-
-### Cobertura de código
-```bash
 npm test:coverage
 ```
 
-Testes incluem:
-- ✅ Validação de CPF/CNPJ
-- ✅ Validação de e-mail e telefone
-- ✅ Formatação de entrada
-- ✅ Casos especiais (números repetidos, etc)
+### Cobertura atual
+- validação de CPF/CNPJ
+- validação de e-mail e telefone
+- validação de dados de formulário
 
 ## 🌐 Deploy
 
-### Vercel (recomendado)
+### Vercel
 ```bash
 npm i -g vercel
 vercel --prod
 ```
 
-Ou conecte seu repositório GitHub direto em https://vercel.com
+Ou conecte o repositório GitHub em https://vercel.com.
 
 ### Netlify
 ```bash
@@ -144,93 +117,70 @@ npm i -g netlify-cli
 netlify deploy --prod
 ```
 
-Ou conecte seu repositório GitHub direto em https://app.netlify.com
+Ou conecte seu repositório GitHub em https://app.netlify.com.
 
-### GitHub Actions (CI/CD)
-O repositório inclui workflow que:
-- Roda testes automaticamente
-- Faz build do projeto
-- Deploy automático para Vercel/Netlify
+### GitHub Actions
+Este repositório inclui `.github/workflows/ci-cd.yml` para:
+- rodar testes
+- construir o projeto
+- deploy automático para Vercel/Netlify
 
-Veja [DEPLOY.md](DEPLOY.md) para instruções detalhadas.
+Consulte `DEPLOY.md` para detalhes.
 
-## 🔌 Integração com APIs de CPF (Assertiva/Serasa)
+## 🔌 Integração de CPF
 
-Para ativar lookup de CPF com dados reais (serviço pago):
-
-### 1. Escolher provedor
-
-Opções:
-- **Assertiva** (https://assertiva.com.br) - Recomendado
-- **Serasa** (https://www.serasa.com.br) - Popular
-- **BigDataCorp** (https://www.bigdatacorp.com.br) - Budget-friendly
-
-### 2. Configurar variáveis de ambiente
-
+Para usar lookup de CPF com API real, configure:
 ```env
 VITE_CPF_LOOKUP_PROVIDER=assertiva
 VITE_CPF_LOOKUP_API_KEY=sua-chave-de-api
 ```
 
-### 3. Usar no formulário
-
-O componente detectará automaticamente a configuração e habilitará o lookup de CPF!
-
-Atualmente usa mock (desenvolvimento). Veja [src/services/cpfLookupService.js](src/services/cpfLookupService.js).
+Atualmente o projeto usa `mock` por padrão. Veja `src/services/cpfLookupService.js`.
 
 ## 📁 Estrutura do Projeto
 
 ```
 src/
 ├── components/
-│   ├── CustomerForm.jsx       # Formulário de cadastro
-│   └── ClientList.jsx         # Lista de clientes com filtros
+│   ├── ClientList.jsx
+│   ├── ContractList.jsx
+│   ├── ContratoForm.jsx
+│   ├── CustomerForm.jsx
+│   ├── InventoryMap.jsx
+│   ├── ModuleDashboard.jsx
+│   ├── PontoInventarioForm.jsx
+│   └── ProprietarioForm.jsx
 ├── lib/
-│   └── validations.js         # Funções de validação robustas
+│   └── validations.js
 ├── services/
-│   └── cpfLookupService.js    # Integração com APIs de CPF
+│   └── cpfLookupService.js
 ├── __tests__/
-│   └── validations.test.js    # Testes unitários
-├── supabaseClient.js
+│   └── validations.test.js
 ├── App.jsx
-└── main.jsx
+├── main.jsx
+└── supabaseClient.js
 
 db/
 ├── 001_create_clientes_table.sql
-└── 002_add_rls_policies.sql
+├── 002_add_rls_policies.sql
+├── 003_create_inventory_tables.sql
+├── 004_add_inventory_rls_policies.sql
+├── 005_create_contracts_table.sql
+└── 006_add_contracts_rls_policies.sql
 
 .github/
 └── workflows/
-    └── ci-cd.yml              # GitHub Actions
+    └── ci-cd.yml
 
 vercel.json
 netlify.toml
 jest.config.js
-.babelrc
+package.json
+package-lock.json
 DEPLOY.md
 ```
 
-## 🔧 Configuração Avançada
-
-### Adicionar autenticação
-
-1. Habilitar autenticação no Supabase (Auth)
-2. Descomentar policies de RLS para "authenticated users only"
-3. Adicionar middleware de autenticação no React
-
-### Adicionar mais campos
-
-1. Alterar schema em Supabase
-2. Atualizar `src/components/CustomerForm.jsx`
-3. Adicionar validações em `src/lib/validations.js`
-
-### Integrar com sistema existente
-
-- Supabase fornece Webhooks para sincronizar dados
-- REST API disponível para integrações
-
-## 📊 Build para Produção
-
+## 🔧 Build para Produção
 ```bash
 npm run build
 npm run preview
@@ -238,26 +188,18 @@ npm run preview
 
 ## 🚨 Troubleshooting
 
-### Erro "CPF/CNPJ não encontrado"
-- A API (BrasilAPI/ViaCEP) pode estar temporariamente indisponível
-- Verifique a conexão de internet
-- Tente novamente em alguns segundos
+- Verifique variáveis de ambiente em `.env`
+- Confirme a URL e a chave do Supabase
+- Verifique logs do navegador (F12)
+- Confira o dashboard do Supabase para erros de RLS
 
-### Erro "Este cliente já está cadastrado"
-- Já existe um cliente com este CPF/CNPJ no banco
-- Use o nome cadastrado ou remova o cliente anterior
+## 📝 Próximas melhorias
 
-### Erro de Supabase
-- Verifique as variáveis de ambiente
-- Confirme que as credenciais estão corretas
-- Tente regenerar as chaves em Supabase dashboard
+- [ ] exportação em CSV/PDF
+- [ ] notificações via WhatsApp
+- [ ] painel de métricas e gráficos
+- [ ] edição de clientes cadastrados
 
-## 📝 Próximas Funcionalidades
-
-- [ ] Exportar clientes em CSV/PDF
-- [ ] Integração com WhatsApp para notificações
-- [ ] Dashboard com estatísticas
-- [ ] Edição de clientes cadastrados
 - [ ] Deletar clientes com soft delete
 - [ ] Auditoria de mudanças
 - [ ] Integração com sistemas de faturamento
