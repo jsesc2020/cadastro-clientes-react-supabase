@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { BrowserRouter, Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import CustomerForm from './components/CustomerForm'
 import ClientList from './components/ClientList'
@@ -250,6 +250,8 @@ function ContratosPage() {
 }
 
 function ClientesPage() {
+  const [refreshClients, setRefreshClients] = useState(0)
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -264,9 +266,9 @@ function ClientesPage() {
           Voltar ao dashboard
         </Link>
       </div>
-      <CustomerForm onSuccess={() => window.location.reload()} />
+      <CustomerForm onSuccess={() => setRefreshClients((current) => current + 1)} />
       <div className="mt-8">
-        <ClientList />
+        <ClientList refreshKey={refreshClients} />
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { isContractActive, normalizePointStatuses, getActiveContractCounts } from '../lib/contractUtils'
 
 function loadGoogleMaps(apiKey) {
   return new Promise((resolve, reject) => {
@@ -46,14 +47,6 @@ function getPinColor(status) {
 function formatDate(value) {
   if (!value) return '-'
   return new Date(value).toLocaleDateString('pt-BR')
-}
-
-function isContractActive(contract) {
-  if (!contract) return false
-  const today = new Date()
-  const start = new Date(contract.data_inicio)
-  const end = new Date(contract.data_termino)
-  return contract.status === 'ATIVO' && start <= today && today <= end
 }
 
 export default function InventoryMap() {
@@ -129,12 +122,30 @@ export default function InventoryMap() {
       setContracts(contractsData || [])
       const normalizedPoints = normalizePointStatuses(pontosData || [], contractsData || [])
       setPontos(normalizedPoints)
+      await syncPointStatuses(pontosData || [], contractsData || [])
       setStatusSyncMessage('Sincronização de status concluída.')
     } catch (err) {
       console.error(err)
       setError('Erro ao carregar dados do inventário.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function syncPointStatuses(pointList, contractList) {
+    const activeContractCounts = getActiveContractCounts(contractList || [])
+    const updates = (pointList || []).reduce((acc, point) => {
+      if (!point || point.status === 'MANUTENCAO') return acc
+      const activeCount = activeContractCounts[point.id] || 0
+      const targetStatus = activeCount > 0 ? 'LOCADO' : point.status === 'LOCADO' ? 'DISPONIVEL' : point.status
+      if (targetStatus !== point.status) {
+        acc.push({ id: point.id, status: targetStatus })
+      }
+      return acc
+    }, [])
+
+    for (const update of updates) {
+      await supabase.from('pontos_inventario').update({ status: update.status }).eq('id', update.id)
     }
   }
 
@@ -303,9 +314,12 @@ export default function InventoryMap() {
       })
 
       const ownerName = proprietarios[point.proprietario_id] || 'Proprietário não encontrado'
-      const activeContract = getCurrentContract(point.id)
-      const contractContent = activeContract
-        ? `<span style="font-size:0.95rem; font-weight:600;">Cliente: ${activeContract.cliente?.razao_nome || 'N/D'}</span><br /><span style="font-size:0.95rem">Término: ${formatDate(activeContract.data_termino)}</span><br />`
+      const activeContractsForPoint = contracts.filter((contract) => contract.ponto_id === point.id && isContractActive(contract))
+      const contractContent = activeContractsForPoint.length > 0
+        ? `<span style="font-size:0.95rem; font-weight:600;">Contratos ativos: ${activeContractsForPoint.length}</span><br />`
+        : ''
+      const tvHint = point.tipo === 'TV'
+        ? '<span style="font-size:0.95rem; color:#1d4ed8; font-weight:600;">TV aceita múltiplos contratos simultâneos</span><br />'
         : ''
 
       const content = `
@@ -315,6 +329,7 @@ export default function InventoryMap() {
           <span style="font-size:0.95rem">Status: ${point.status}</span><br />
           <span style="font-size:0.95rem">Proprietário: ${ownerName}</span><br />
           ${contractContent}
+          ${tvHint}
           ${point.status === 'LOCADO' ? '<span style="color:#dc3545;font-weight:600;">Contrato ativo</span><br />' : ''}
           <a href="#" id="edit-point-${point.id}" style="color:#1d4ed8; text-decoration:none; font-weight:600;">Editar Ponto</a>
         </div>
@@ -401,6 +416,7 @@ export default function InventoryMap() {
               <li>🟢 Disponível</li>
               <li>🔴 Locado</li>
               <li>🟡 Em manutenção</li>
+              <li>🟣 TVs podem receber múltiplos contratos simultâneos</li>
             </ul>
           </div>
 

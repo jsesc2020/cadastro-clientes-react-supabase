@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import {
+  getActiveContractCounts,
+  getAvailableContractPoints
+} from '../lib/contractUtils'
 
 const initialForm = {
   ponto_id: '',
@@ -20,6 +24,8 @@ export default function ContratoForm({ onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [pontos, setPontos] = useState([])
   const [clientes, setClientes] = useState([])
+  const [contracts, setContracts] = useState([])
+  const [activeContractCounts, setActiveContractCounts] = useState({})
 
   useEffect(() => {
     fetchOptions()
@@ -27,13 +33,19 @@ export default function ContratoForm({ onSuccess }) {
 
   async function fetchOptions() {
     try {
-      const [{ data: pontosData, error: pontosError }, { data: clientesData, error: clientesError }] = await Promise.all([
-        supabase.from('pontos_inventario').select('id, identificacao, status').order('identificacao', { ascending: true }),
-        supabase.from('clientes').select('id, razao_nome, cpf_cnpj').order('razao_nome', { ascending: true })
+      const [{ data: pontosData, error: pontosError }, { data: clientesData, error: clientesError }, { data: contratosData, error: contratosError }] = await Promise.all([
+        supabase.from('pontos_inventario').select('id, identificacao, status, tipo').order('identificacao', { ascending: true }),
+        supabase.from('clientes').select('id, razao_nome, cpf_cnpj').order('razao_nome', { ascending: true }),
+        supabase.from('contratos').select('id, ponto_id, status, data_inicio, data_termino')
       ])
 
       if (pontosError) throw pontosError
       if (clientesError) throw clientesError
+      if (contratosError) throw contratosError
+
+      const contractsList = contratosData || []
+      setContracts(contractsList)
+      setActiveContractCounts(getActiveContractCounts(contractsList))
       setPontos(pontosData || [])
       setClientes(clientesData || [])
     } catch (error) {
@@ -47,6 +59,18 @@ export default function ContratoForm({ onSuccess }) {
     if (errors[key]) {
       setErrors((current) => ({ ...current, [key]: null }))
     }
+  }
+
+  const availablePoints = getAvailableContractPoints(pontos, contracts)
+
+  function getContractCountForPoint(pointId) {
+    return activeContractCounts[pointId] || 0
+  }
+
+  function formatPointLabel(point) {
+    const activeCount = getContractCountForPoint(point.id)
+    const contractInfo = activeCount > 0 ? `, ${activeCount} contrato${activeCount > 1 ? 's' : ''}` : ''
+    return `${point.tipo} · ${point.identificacao} (${point.status}${contractInfo})`
   }
 
   function validateForm() {
@@ -78,6 +102,18 @@ export default function ContratoForm({ onSuccess }) {
 
     setLoading(true)
     try {
+      const point = pontos.find((item) => item.id === form.ponto_id)
+      if (!point) {
+        throw new Error('Ponto selecionado inválido.')
+      }
+
+      const activeCount = getContractCountForPoint(point.id)
+      if (point.tipo === 'OUTDOOR' && activeCount > 0) {
+        setMessage('Este ponto de outdoor já possui um contrato ativo e não pode ser locado novamente até o término do contrato.')
+        setLoading(false)
+        return
+      }
+
       const payload = {
         ponto_id: form.ponto_id,
         cliente_id: form.cliente_id,
@@ -90,15 +126,18 @@ export default function ContratoForm({ onSuccess }) {
       const { data, error } = await supabase.from('contratos').insert([payload]).select('id')
       if (error) throw error
 
-      const { error: updateError } = await supabase
-        .from('pontos_inventario')
-        .update({ status: 'LOCADO' })
-        .eq('id', form.ponto_id)
-      if (updateError) throw updateError
+      if (point.tipo === 'OUTDOOR') {
+        const { error: updateError } = await supabase
+          .from('pontos_inventario')
+          .update({ status: 'LOCADO' })
+          .eq('id', form.ponto_id)
+        if (updateError) throw updateError
+      }
 
-      setMessage('Contrato cadastrado com sucesso e ponto marcado como LOCADO.')
+      setMessage('Contrato cadastrado com sucesso.' + (point.tipo === 'OUTDOOR' ? ' Ponto marcado como LOCADO.' : ''))
       setForm(initialForm)
       setErrors({})
+      await fetchOptions()
       if (typeof onSuccess === 'function') onSuccess()
     } catch (error) {
       console.error(error)
@@ -119,12 +158,15 @@ export default function ContratoForm({ onSuccess }) {
             className={`mt-1 block w-full rounded border ${errors.ponto_id ? 'border-red-500' : 'border-gray-300'} shadow-sm focus:border-blue-500 focus:ring-blue-500`}
           >
             <option value="">Selecione um ponto</option>
-            {pontos.map((ponto) => (
+            {availablePoints.map((ponto) => (
               <option key={ponto.id} value={ponto.id}>
-                {ponto.identificacao} ({ponto.status})
+                {formatPointLabel(ponto)}
               </option>
             ))}
           </select>
+          <p className="mt-2 text-xs text-slate-500">
+            Pontos de TV podem receber múltiplos contratos simultâneos. Outdoors só podem ser locados quando não houver contrato ativo.
+          </p>
           {errors.ponto_id && <p className="mt-1 text-sm text-red-600">{errors.ponto_id}</p>}
         </div>
         <div>

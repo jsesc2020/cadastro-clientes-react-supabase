@@ -89,8 +89,10 @@ Acesse `http://localhost:5173`.
 
 ### Contratos
 - vincula cliente e ponto de mídia
-- atualiza o ponto para `LOCADO` automaticamente
-- reverte para `DISPONIVEL` ao expirar
+- outdoors só podem receber um contrato ativo por vez
+- TVs podem receber múltiplos contratos simultâneos
+- atualiza o ponto para `LOCADO` automaticamente quando necessário
+- reverte para `DISPONIVEL` ao expirar (para outdoors)
 - lista de contratos com período e valor
 
 ### Clientes

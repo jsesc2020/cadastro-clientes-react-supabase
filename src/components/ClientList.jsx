@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 
-export default function ClientList() {
+export default function ClientList({ refreshKey = 0 }) {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -12,7 +12,7 @@ export default function ClientList() {
 
   useEffect(() => {
     fetchClients()
-  }, [searchTerm, filterType, currentPage])
+  }, [searchTerm, filterType, currentPage, refreshKey])
 
   async function fetchClients() {
     setLoading(true)
