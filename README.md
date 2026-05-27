@@ -1,19 +1,15 @@
-# Cadastro de Clientes (React + Tailwind + Supabase)
+# Módulo de Inventário de Outdoors e TVs (React + Tailwind + Supabase)
 
-Módulo completo de gestão de clientes (Pessoa Física e Jurídica) com:
-- ✅ Máscara de CPF (000.000.000-00) e CNPJ (00.000.000/0000-00)
-- ✅ Validação matemática de CPF e CNPJ com dígito verificador
-- ✅ Validação robusta de e-mail e telefone
-- ✅ Integração com **BrasilAPI** para busca de dados de CNPJ
-- ✅ Integração com **ViaCEP** para auto-preenchimento de endereço via CEP
-- ✅ Integração com **Supabase** para checagem de duplicidade e persistência
-- ✅ **Componente de lista de clientes** com filtros e paginação
-- ✅ **RLS (Row Level Security)** no Supabase
-- ✅ **Testes unitários** com Jest e React Testing Library
-- ✅ **Deploy automático** (Vercel, Netlify, GitHub Actions)
-- ✅ **Estrutura para integração com Assertiva/Serasa** (CPF lookup pago)
-- ✅ Mensagens de erro inline com validação em tempo real
-- ✅ Interface responsiva com Tailwind CSS
+Este projeto agora inclui um módulo de cadastro para gerenciar inventário físico de outdoors e TVs, com:
+- ✅ Cadastro de proprietários com dados bancários (Pix, banco, agência e conta)
+- ✅ Cadastro de pontos de mídia com endereço, geocodificação e coordenadas
+- ✅ Tela de mapa interativo com filtros por tipo e status
+- ✅ Marcações coloridas e InfoWindow com dados do ponto
+- ✅ Validação de latitude/longitude obrigatória antes de salvar
+- ✅ Integração com Google Places API para autocomplete de endereço
+- ✅ Mini-mapa de ajuste de posição para refinar coordenadas
+- ✅ Tabelas novas no Supabase: `proprietarios` e `pontos_inventario`
+- ✅ RLS básico para ambas tabelas
 
 ## 🚀 Quick Start
 
@@ -27,42 +23,25 @@ npm install
 cp .env.example .env
 ```
 
-Edite `.env` com suas credenciais do Supabase:
+Edite `.env` com suas credenciais do Supabase e a chave do Google Maps:
 ```
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-chave-publica
+VITE_GOOGLE_MAPS_API_KEY=sua-chave-google-maps
 VITE_CPF_LOOKUP_PROVIDER=mock
 ```
 
-### 3. Criar tabela no Supabase
+> A chave do Google Maps deve ser mantida em variáveis de ambiente e não codificada diretamente no código.
 
-Vá para SQL Editor no painel do Supabase e execute:
+### 3. Criar tabelas no Supabase
 
-```sql
-create table if not exists clientes (
-  id bigserial primary key,
-  tipo text,
-  cpf_cnpj text unique,
-  razao_nome text,
-  fantasia_apelido text,
-  inscricao_estadual text,
-  email text,
-  telefone text,
-  cep text,
-  logradouro text,
-  numero text,
-  complemento text,
-  bairro text,
-  cidade text,
-  uf text,
-  created_at timestamptz default now()
-);
-```
+Vá para SQL Editor no painel do Supabase e execute os scripts em `db/003_create_inventory_tables.sql`, `db/004_add_inventory_rls_policies.sql`, `db/005_create_contracts_table.sql` e `db/006_add_contracts_rls_policies.sql`.
 
-Depois execute a migration de RLS:
+Se você quiser manter o cadastro de clientes legados, também pode executar:
 
 ```sql
--- (Copie o conteúdo de db/002_add_rls_policies.sql)
+-- db/001_create_clientes_table.sql
+-- db/002_add_rls_policies.sql
 ```
 
 ### 4. Rodar em desenvolvimento
@@ -72,26 +51,59 @@ npm run dev
 
 Abra `http://localhost:5173` no navegador.
 
-## 📋 Funcionalidades
+## 📋 Funcionalidades do Módulo de Inventário
 
-### Cadastro de Clientes
-- **Formulário completo** com máscara e validação em tempo real
-- **Busca inteligente** por CNPJ (BrasilAPI) e CEP (ViaCEP)
-- **Auto-preenchimento** de dados cadastrais
-- **Validações robustas** com mensagens de erro inline
-- **Checagem de duplicidade** antes de salvar
+### Cadastro de Proprietário
+- **Nome completo**
+- **CPF/CNPJ único**
+- **Telefone**
+- **Dados bancários em JSONB** (Pix, banco, agência, conta)
 
-### Lista de Clientes
-- **Tabela responsiva** com todos os cadastros
-- **Filtros por tipo** (Pessoa Física/Jurídica) e busca por nome/CPF/CNPJ
-- **Paginação** com 10 clientes por página
-- **Formatação automática** de CPF/CNPJ e datas
+### Cadastro de Ponto de Mídia
+- **Tipo**: Outdoor ou TV
+- **Identificação descritiva**
+- **Proprietário vinculado**
+- **Endereço com autocomplete do Google**
+- **Latitude/Longitude obrigatórias**
+- **Valor de custo mensal**
+- **Status**: Disponível, Locado, Manutenção
 
-### Segurança
-- **RLS (Row Level Security)** ativado no Supabase
-- **Validação de CPF/CNPJ** com algoritmo de dígito verificador
-- **Prevenção de duplicatas** via constraint UNIQUE
-- **Dados criptografados** em repouso (Supabase)
+### Dashboard do Mapa Interativo
+- **Filtros por tipo e status**
+- **Pins coloridos** para cada status
+- **InfoWindow** com detalhes do ponto
+- **Painel de seleção** para exibir dados do ponto clicado
+- **Visualização de pontos no mapa em tempo real**
+
+### Contratos
+- **Cadastro de contratos** para vincular cliente + ponto de mídia
+- **Atualização automática de status** do ponto para `LOCADO` quando o contrato estiver ativo
+- **Retorno para `DISPONIVEL`** quando o contrato expirar
+- **Lista de contratos** com cliente, período e valor mensal
+
+### Regras de Negócio
+- O sistema não permite salvar ponto se latitude/longitude estiverem vazias
+- Quando o contrato for criado, o ponto passa para `LOCADO`
+- Quando o contrato vencer, o ponto volta para `DISPONIVEL`
+
+## 🧪 Testes
+
+### Rodar testes
+```bash
+npm test
+```
+
+### Modo watch
+```bash
+npm test:watch
+```
+
+### Cobertura de código
+```bash
+npm test:coverage
+```
+
+Testes atuais incluem validações básicas de CPF/CNPJ, e-mail e telefone.
 
 ## 🧪 Testes
 

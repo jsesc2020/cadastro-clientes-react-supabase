@@ -58,8 +58,8 @@ describe('Validations', () => {
 
   describe('validateCNPJ', () => {
     it('should validate correct CNPJ', () => {
-      expect(validateCNPJ('34028316000107')).toBe(true)
-      expect(validateCNPJ('34.028.316/0001-07')).toBe(true)
+      expect(validateCNPJ('34028316000103')).toBe(true)
+      expect(validateCNPJ('34.028.316/0001-03')).toBe(true)
     })
 
     it('should reject invalid CNPJ', () => {

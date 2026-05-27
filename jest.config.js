@@ -13,7 +13,7 @@ module.exports = {
     '!src/main.jsx',
     '!src/**/*.test.js',
   ],
-  coverageThresholds: {
+     coverageThreshold: {
     global: {
       branches: 50,
       functions: 50,

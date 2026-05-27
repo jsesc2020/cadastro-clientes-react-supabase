@@ -1,163 +1,225 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { validateEmail, validatePhone, validateCPF, validateCNPJ, getEmailErrorMessage, getPhoneErrorMessage } from '../lib/validations'
+import {
+  validateEmail,
+  validatePhone,
+  validateCPF,
+  validateCNPJ,
+  getEmailErrorMessage,
+  getPhoneErrorMessage
+} from '../lib/validations'
 
-function maskCPF(value){
+const initialForm = {
+  razao_nome: '',
+  fantasia_apelido: '',
+  inscricao_estadual: '',
+  email: '',
+  telefone: '',
+  cep: '',
+  logradouro: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
+  cidade: '',
+  uf: ''
+}
+
+function onlyDigits(value) {
+  return (value || '').replace(/\D/g, '')
+}
+
+function maskCPF(value) {
   const digits = onlyDigits(value)
-  if(digits.length<=3) return digits
-  if(digits.length<=6) return `${digits.slice(0,3)}.${digits.slice(3)}`
-  if(digits.length<=9) return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6)}`
-  return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9,11)}`
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`
 }
 
-function maskCNPJ(value){
+function maskCNPJ(value) {
   const digits = onlyDigits(value)
-  if(digits.length<=2) return digits
-  if(digits.length<=5) return `${digits.slice(0,2)}.${digits.slice(2)}`
-  if(digits.length<=8) return `${digits.slice(0,2)}.${digits.slice(2,5)}.${digits.slice(5)}`
-  if(digits.length<=12) return `${digits.slice(0,2)}.${digits.slice(2,5)}.${digits.slice(5,8)}/${digits.slice(8)}`
-  return `${digits.slice(0,2)}.${digits.slice(2,5)}.${digits.slice(5,8)}/${digits.slice(8,12)}-${digits.slice(12,14)}`
+  if (digits.length <= 2) return digits
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12, 14)}`
 }
 
-function maskCEP(value){
+function maskCEP(value) {
   const digits = onlyDigits(value)
-  if(digits.length<=5) return digits
-  return `${digits.slice(0,5)}-${digits.slice(5,8)}`
+  if (digits.length <= 5) return digits
+  return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`
 }
 
-function validateCPF(cpf){
-  const s = onlyDigits(cpf)
-  if(!/^[0-9]{11}$/.test(s)) return false
-  let sum = 0, rem
-  for(let i=1;i<=9;i++) sum += parseInt(s.substring(i-1,i)) * (11 - i)
-  rem = (sum * 10) % 11
-  if(rem === 10) rem = 0
-  if(rem !== parseInt(s.substring(9,10))) return false
-  sum = 0
-  for(let i=1;i<=10;i++) sum += parseInt(s.substring(i-1,i)) * (12 - i)
-  rem = (sum * 10) % 11
-  if(rem === 10) rem = 0
-  if(rem !== parseInt(s.substring(10,11))) return false
-  return true
-}
-
-export default function CustomerForm({ onSuccess }){
+export default function CustomerForm({ onSuccess }) {
   const [type, setType] = useState('cpf')
   const [doc, setDoc] = useState('')
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState({})
-  const [form, setForm] = useState({
-    razao_nome: '',
-    fantasia_apelido: '',
-    inscricao_estadual: '',
-    email: '',
-    telefone: '',
-    cep: '',
-    logradouro: '',
-    numero: '',
-    complemento: '',
-    bairro: '',
-    cidade: '',
-    uf: ''
-  })
+  const [form, setForm] = useState(initialForm)
 
-    setForm(f=>({...f,[k]:v}))
-    // Clear error for this field when user starts typing
-    if(errors[k]) setErrors(e=>({...e,[k]:null}))
- 
-  function onlyDigits(s){ return (s||'').replace(/\D/g,'') }
-
-  function handleDocChange(e){
-    const value = e.target.value
-    if(type==='cnpj') setDoc(maskCNPJ(value))
-    else setDoc(maskCPF(value))
+  function resetForm() {
+    setDoc('')
+    setForm(initialForm)
+    setErrors({})
+    setMessage('')
   }
 
-  function handleCepChange(e){
-    const value = e.target.value
-    setField('cep', maskCEP(value))
+  function updateField(key, value) {
+    setForm((current) => ({ ...current, [key]: value }))
+    if (errors[key]) {
+      setErrors((current) => ({ ...current, [key]: null }))
+    }
   }
 
-  async function handleBuscar(){
+  function handleTypeChange(newType) {
+    setType(newType)
+    resetForm()
+  }
+
+  function handleDocChange(event) {
+    const value = event.target.value
+    if (type === 'cnpj') {
+      setDoc(maskCNPJ(value))
+    } else {
+      setDoc(maskCPF(value))
+    }
+    if (errors.doc) {
+      setErrors((current) => ({ ...current, doc: null }))
+    }
+  }
+
+  function handleCepChange(event) {
+    updateField('cep', maskCEP(event.target.value))
+  }
+
+  async function handleBuscar() {
     const digits = onlyDigits(doc)
     setMessage('')
-    if(type==='cnpj'){
-      if(digits.length !== 14){ setMessage('CNPJ incompleto'); return }
+
+    if (type === 'cnpj') {
+      if (digits.length !== 14) {
+        setMessage('CNPJ incompleto')
+        return
+      }
+
       setLoadingSearch(true)
-      try{
+      try {
         const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`)
-        if(!res.ok) throw new Error('CNPJ não encontrado')
+        if (!res.ok) throw new Error('CNPJ não encontrado')
         const data = await res.json()
-        setForm(f=>({
-          ...f,
+        setForm((current) => ({
+          ...current,
           razao_nome: data.razao_social || data.nome || '',
           fantasia_apelido: data.nome_fantasia || '',
-          cep: maskCEP((data.cep||'').replace(/\D/g,'')),
+          cep: maskCEP((data.cep || '').replace(/\D/g, '')),
           logradouro: data.logradouro || data.tipo_logradouro || '',
           bairro: data.bairro || '',
           cidade: data.municipio || data.municipio || data.cidade || '',
           uf: data.uf || data.estado || ''
         }))
         setMessage('✓ Dados carregados com sucesso')
-      }catch(e){
-        setMessage(e.message || 'Erro ao consultar CNPJ')
-      }finally{ setLoadingSearch(false) }
+      } catch (error) {
+        setMessage(error.message || 'Erro ao consultar CNPJ')
+      } finally {
+        setLoadingSearch(false)
+      }
     } else {
-      if(!validateCPF(doc)) { setMessage('CPF inválido'); return }
+      if (!validateCPF(doc)) {
+        setMessage('CPF inválido')
+        return
+      }
       setMessage('✓ CPF validado — preencha nome e endereço manualmente ou use o CEP.')
     }
   }
 
-  async function handleCepBlur(){
+  async function handleCepBlur() {
     const cep = onlyDigits(form.cep)
-    if(cep.length !== 8) return
-    try{
+    if (cep.length !== 8) return
+
+    try {
       const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
       const data = await res.json()
-      if(data.erro){ setMessage('CEP não encontrado'); return }
-      setForm(f=>({
-        ...f,
-        logradouro: data.logradouro || f.logradouro,
-        bairro: data.bairro || f.bairro,
-        cidade: data.localidade || f.cidade,
-        uf: data.uf || f.uf
+      if (data.erro) {
+        setMessage('CEP não encontrado')
+        return
+      }
+
+      setForm((current) => ({
+        ...current,
+        logradouro: data.logradouro || current.logradouro,
+        bairro: data.bairro || current.bairro,
+        cidade: data.localidade || current.cidade,
+        uf: data.uf || current.uf
       }))
       setMessage('✓ Endereço carregado')
-    }catch(e){ console.error(e); setMessage('Erro ao consultar CEP') }
-  }validateEmail(form.email)
-    const telefoneOk = validatePhone(form.telefone)
-    const enderecoOk = form.cep.trim() && form.logradouro.trim() && form.numero.trim() && form.cidade.trim() && form.uf.trim()
-    const docDigits = onlyDigits(doc)
-    if(type==='cnpj') return docDigits.length===14 && r && emailOk && telefoneOk && enderecoOk
-    return docDigits.length===11 && r && emailOk && telefoneOk && enderecoOk
+    } catch (error) {
+      console.error(error)
+      setMessage('Erro ao consultar CEP')
+    }
   }
 
-  function validateForm() {
-    const newErrors = {}
-    
-    if (!form.razao_nome.trim()) newErrors.razao_nome = 'Campo obrigatório'
+  function validateFormFields() {
+    const fieldErrors = {}
+    const docDigits = onlyDigits(doc)
+
+    if (!docDigits) {
+      fieldErrors.doc = type === 'cnpj' ? 'CNPJ é obrigatório' : 'CPF é obrigatório'
+    } else if (type === 'cpf') {
+      if (docDigits.length !== 11) fieldErrors.doc = 'CPF incompleto'
+      else if (!validateCPF(docDigits)) fieldErrors.doc = 'CPF inválido'
+    } else {
+      if (docDigits.length !== 14) fieldErrors.doc = 'CNPJ incompleto'
+      else if (!validateCNPJ(docDigits)) fieldErrors.doc = 'CNPJ inválido'
+    }
+
+    if (!form.razao_nome.trim()) fieldErrors.razao_nome = 'Campo obrigatório'
+
     const emailError = getEmailErrorMessage(form.email)
-    if (!validateForm()) {
-      setMessage('')
+    if (emailError) fieldErrors.email = emailError
+
+    const phoneError = getPhoneErrorMessage(form.telefone)
+    if (phoneError) fieldErrors.telefone = phoneError
+
+    if (!form.cep.trim()) fieldErrors.cep = 'CEP é obrigatório'
+    if (!form.logradouro.trim()) fieldErrors.logradouro = 'Logradouro é obrigatório'
+    if (!form.numero.trim()) fieldErrors.numero = 'Número é obrigatório'
+    if (!form.cidade.trim()) fieldErrors.cidade = 'Cidade é obrigatória'
+    if (!form.uf.trim()) fieldErrors.uf = 'Estado é obrigatório'
+
+    return {
+      valid: Object.keys(fieldErrors).length === 0,
+      fieldErrors
+    }
+  }
+
+  async function handleSave() {
+    const { valid, fieldErrors } = validateFormFields()
+    if (!valid) {
+      setErrors(fieldErrors)
+      setMessage('Corrija os campos em vermelho.')
       return
     }
 
     const cpfcnpj = onlyDigits(doc)
-    if(type==='cpf' && !validateCPF(doc)){ setMessage('CPF inválido'); return }
-    if(type==='cnpj' && !validateCNPJ(doc)){ setMessage('CNPJ inválido'); return }
-    
     setSaving(true)
     setMessage('')
-    try{
+
+    try {
       const { data: existing, error: selErr } = await supabase
         .from('clientes')
         .select('id')
         .eq('cpf_cnpj', cpfcnpj)
         .limit(1)
-      if(selErr) throw selErr
-      if(existing && existing.length>0){ setMessage('Este cliente já está cadastrado'); return }
+
+      if (selErr) throw selErr
+      if (existing && existing.length > 0) {
+        setMessage('Este cliente já está cadastrado')
+        return
+      }
+
       const payload = {
         tipo: type,
         cpf_cnpj: cpfcnpj,
@@ -174,42 +236,47 @@ export default function CustomerForm({ onSuccess }){
         cidade: form.cidade,
         uf: form.uf
       }
+
       const { error: insErr } = await supabase.from('clientes').insert(payload)
-      if(insErr) throw insErr
+      if (insErr) throw insErr
+
       setMessage('✓ Cadastro salvo com sucesso')
-      setTimeout(()=>{
-        setDoc('')
-        setForm({ razao_nome:'', fantasia_apelido:'', inscricao_estadual:'', email:'', telefone:'', cep:'', logradouro:'', numero:'', complemento:'', bairro:'', cidade:'', uf:'' })
-        if(onSuccess) onSuccess(
-        fantasia_apelido: form.fantasia_apelido,
-        inscricao_estadual: form.inscricao_estadual,
-        email: form.email,
-        telefone: form.telefone,
-        cep: onlyDigits(form.cep),
-        logradouro: form.logradouro,
-        numero: form.numero,
-        complemento: form.complemento,
-        bairro: form.bairro,
-        cidade: form.cidade,
-        uf: form.uf
-      }
-      const { error: insErr } = await supabase.from('clientes').insert(payload)
-      if(insErr) throw insErr
-      setMessage('✓ Cadastro salvo com sucesso')
-      setTimeout(()=>{
-        setDoc('')
-        setForm({ razao_nome:'', fantasia_apelido:'', inscricao_estadual:'', email:'', telefone:'', cep:'', logradouro:'', numero:'', complemento:'', bairro:'', cidade:'', uf:'' })
-      }, 1500)
-    }catch(e){
-      setMessage('Erro ao salvar: '+(e.message||JSON.stringify(e)))
-    }finally{ setSaving(false) }
+      resetForm()
+      if (onSuccess) onSuccess()
+    } catch (error) {
+      setMessage('Erro ao salvar: ' + (error.message || JSON.stringify(error)))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function requiredFilled() {
+    const docDigits = onlyDigits(doc)
+    const docReady = type === 'cpf' ? docDigits.length === 11 : docDigits.length === 14
+    return (
+      docReady &&
+      form.razao_nome.trim() &&
+      form.email.trim() &&
+      form.telefone.trim() &&
+      form.cep.trim() &&
+      form.logradouro.trim() &&
+      form.numero.trim() &&
+      form.cidade.trim() &&
+      form.uf.trim()
+    )
   }
 
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <label className="flex items-center gap-2"><input type="radio" checked={type==='cpf'} onChange={()=>setType('cpf')} /> Pessoa Física (CPF)</label>
-        <label className="flex items-center gap-2"><input type="radio" checked={type==='cnpj'} onChange={()=>setType('cnpj')} /> Pessoa Jurídica (CNPJ)</label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={type === 'cpf'} onChange={() => handleTypeChange('cpf')} />
+          Pessoa Física (CPF)
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={type === 'cnpj'} onChange={() => handleTypeChange('cnpj')} />
+          Pessoa Jurídica (CNPJ)
+        </label>
       </div>
 
       {message && (
@@ -218,89 +285,161 @@ export default function CustomerForm({ onSuccess }){
         </div>
       )}
 
-      <div className="flex gap-2 mb-6">
-        <div className="flex-1">
-          <input 
-            type="text"
-            value={doc}
-            onChange={handleDocChange}
-            className="w-full border px-3 py-2 rounded"
-            placeholder={type==='cnpj' ? 'CNPJ' : 'CPF'}
-          />{`w-full border px-3 py-2 rounded ${errors.razao_nome ? 'border-red-500' : ''}`} />
-          {errors.razao_nome && <p className="text-red-500 text-xs mt-1">{errors.razao_nome}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Nome Fantasia / Apelido</label>
-          <input value={form.fantasia_apelido} onChange={e=>setField('fantasia_apelido', e.target.value)} className="w-full border px-3 py-2 rounded" />
-        </div>
-        {type==='cnpj' && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Inscrição Estadual</label>
-            <input value={form.inscricao_estadual} onChange={e=>setField('inscricao_estadual', e.target.value)} className="w-full border px-3 py-2 rounded" />
+      <div className="grid gap-4 mb-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">{type === 'cnpj' ? 'CNPJ *' : 'CPF *'}</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={doc}
+              onChange={handleDocChange}
+              className={`w-full border px-3 py-2 rounded ${errors.doc ? 'border-red-500' : ''}`}
+              placeholder={type === 'cnpj' ? 'CNPJ' : 'CPF'}
+            />
+            <button
+              type="button"
+              onClick={handleBuscar}
+              disabled={loadingSearch}
+              className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-blue-300"
+            >
+              {loadingSearch ? 'Buscando...' : 'Buscar'}
+            </button>
           </div>
-        )}
-        <div>
-          <label className="block text-sm font-medium mb-1">E-mail principal *</label>
-          <input value={form.email} onChange={e=>setField('email', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.email ? 'border-red-500' : ''}`} />
-          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Telefone / WhatsApp *</label>
-          <input value={form.telefone} onChange={e=>setField('telefone', e.target.value)} placeholder="(11) 9xxxx-xxxx" className={`w-full border px-3 py-2 rounded ${errors.telefone ? 'border-red-500' : ''}`} />
-          {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
+          {errors.doc && <p className="text-red-500 text-xs">{errors.doc}</p>}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">CEP *</label>
-          <input 
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Nome / Razão Social *</label>
+          <input
+            value={form.razao_nome}
+            onChange={(e) => updateField('razao_nome', e.target.value)}
+            className={`w-full border px-3 py-2 rounded ${errors.razao_nome ? 'border-red-500' : ''}`}
+          />
+          {errors.razao_nome && <p className="text-red-500 text-xs">{errors.razao_nome}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Nome Fantasia / Apelido</label>
+          <input
+            value={form.fantasia_apelido}
+            onChange={(e) => updateField('fantasia_apelido', e.target.value)}
+            className="w-full border px-3 py-2 rounded"
+          />
+        </div>
+
+        {type === 'cnpj' && (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Inscrição Estadual</label>
+            <input
+              value={form.inscricao_estadual}
+              onChange={(e) => updateField('inscricao_estadual', e.target.value)}
+              className="w-full border px-3 py-2 rounded"
+            />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">E-mail principal *</label>
+          <input
+            value={form.email}
+            onChange={(e) => updateField('email', e.target.value)}
+            className={`w-full border px-3 py-2 rounded ${errors.email ? 'border-red-500' : ''}`}
+          />
+          {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Telefone / WhatsApp *</label>
+          <input
+            value={form.telefone}
+            onChange={(e) => updateField('telefone', e.target.value)}
+            placeholder="(11) 9xxxx-xxxx"
+            className={`w-full border px-3 py-2 rounded ${errors.telefone ? 'border-red-500' : ''}`}
+          />
+          {errors.telefone && <p className="text-red-500 text-xs">{errors.telefone}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">CEP *</label>
+          <input
             value={form.cep}
             onChange={handleCepChange}
             onBlur={handleCepBlur}
             className={`w-full border px-3 py-2 rounded ${errors.cep ? 'border-red-500' : ''}`}
             placeholder="00000-000"
           />
-          {errors.cep && <p className="text-red-500 text-xs mt-1">{errors.cep}</p>}
+          {errors.cep && <p className="text-red-500 text-xs">{errors.cep}</p>}
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Logradouro *</label>
-          <input value={form.logradouro} onChange={e=>setField('logradouro', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.logradouro ? 'border-red-500' : ''}`} />
-          {errors.logradouro && <p className="text-red-500 text-xs mt-1">{errors.logradouro}</p>}
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Logradouro *</label>
+          <input
+            value={form.logradouro}
+            onChange={(e) => updateField('logradouro', e.target.value)}
+            className={`w-full border px-3 py-2 rounded ${errors.logradouro ? 'border-red-500' : ''}`}
+          />
+          {errors.logradouro && <p className="text-red-500 text-xs">{errors.logradouro}</p>}
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Número *</label>
-          <input value={form.numero} onChange={e=>setField('numero', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.numero ? 'border-red-500' : ''}`} />
-          {errors.numero && <p className="text-red-500 text-xs mt-1">{errors.numero}</p>}
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Número *</label>
+          <input
+            value={form.numero}
+            onChange={(e) => updateField('numero', e.target.value)}
+            className={`w-full border px-3 py-2 rounded ${errors.numero ? 'border-red-500' : ''}`}
+          />
+          {errors.numero && <p className="text-red-500 text-xs">{errors.numero}</p>}
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Complemento</label>
-          <input value={form.complemento} onChange={e=>setField('complemento', e.target.value)} className="w-full border px-3 py-2 rounded" />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Complemento</label>
+          <input
+            value={form.complemento}
+            onChange={(e) => updateField('complemento', e.target.value)}
+            className="w-full border px-3 py-2 rounded"
+          />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Bairro</label>
-          <input value={form.bairro} onChange={e=>setField('bairro', e.target.value)} className="w-full border px-3 py-2 rounded" />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Bairro</label>
+          <input
+            value={form.bairro}
+            onChange={(e) => updateField('bairro', e.target.value)}
+            className="w-full border px-3 py-2 rounded"
+          />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Cidade *</label>
-          <input value={form.cidade} onChange={e=>setField('cidade', e.target.value)} className={`w-full border px-3 py-2 rounded ${errors.cidade ? 'border-red-500' : ''}`} />
-          {errors.cidade && <p className="text-red-500 text-xs mt-1">{errors.cidade}</p>}
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Cidade *</label>
+          <input
+            value={form.cidade}
+            onChange={(e) => updateField('cidade', e.target.value)}
+            className={`w-full border px-3 py-2 rounded ${errors.cidade ? 'border-red-500' : ''}`}
+          />
+          {errors.cidade && <p className="text-red-500 text-xs">{errors.cidade}</p>}
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Estado (UF) *</label>
-          <input value={form.uf} onChange={e=>setField('uf', e.target.value.toUpperCase())} className={`w-full border px-3 py-2 rounded ${errors.uf ? 'border-red-500' : ''}`} maxLength="2" />
-          {errors.uf && <p className="text-red-500 text-xs mt-1">{errors.uf}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Cidade *</label>
-          <input value={form.cidade} onChange={e=>setField('cidade', e.target.value)} className="w-full border px-3 py-2 rounded" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Estado (UF) *</label>
-          <input value={form.uf} onChange={e=>setField('uf', e.target.value)} className="w-full border px-3 py-2 rounded" maxLength="2" />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Estado (UF) *</label>
+          <input
+            value={form.uf}
+            onChange={(e) => updateField('uf', e.target.value.toUpperCase())}
+            className={`w-full border px-3 py-2 rounded ${errors.uf ? 'border-red-500' : ''}`}
+            maxLength="2"
+          />
+          {errors.uf && <p className="text-red-500 text-xs">{errors.uf}</p>}
         </div>
       </div>
 
       <div className="mt-6 flex justify-end">
-        <button onClick={handleSave} disabled={!requiredFilled() || saving} className="bg-green-600 text-white px-6 py-2 rounded disabled:opacity-50 hover:bg-green-700">{saving? 'Salvando...':'Salvar Cadastro'}</button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!requiredFilled() || saving}
+          className="bg-green-600 text-white px-6 py-2 rounded disabled:opacity-50 hover:bg-green-700"
+        >
+          {saving ? 'Salvando...' : 'Salvar Cadastro'}
+        </button>
       </div>
     </div>
   )
